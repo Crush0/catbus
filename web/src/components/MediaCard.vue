@@ -33,6 +33,28 @@ const settings = useSettingsStore().settings
  */
 const emit = defineEmits<{ pick: [e: PointerEvent]; press: [e: PointerEvent]; open: [el: HTMLElement] }>()
 
+/**
+ * 渠道图标（聚合模式）：纯 CSS 动画，不经过 <Transition>。channel 出现时加 in（由小到大弹出，延迟取瀑布流给的 --chan-delay），
+ * 消失时换成 out 播完再移除。卡片在瀑布流里换位置不会重建，所以图标只在进出聚合模式、卡片新出现时播一次。
+ */
+const chan = ref(props.channel)
+const chanOn = ref(!!props.channel)
+watch(
+  () => props.channel,
+  (c) => {
+    if (c) {
+      chan.value = c
+      chanOn.value = true
+    } else if (chan.value) {
+      chanOn.value = false
+      if (prefersReducedMotion()) chan.value = undefined
+    }
+  },
+)
+function onChanEnd() {
+  if (!chanOn.value) chan.value = undefined
+}
+
 /** 点击打开详情卡片；⌘ / Ctrl / Shift / 中键仍在新标签页打开原链接（AGENTS.md 7.9） */
 function onClick(e: MouseEvent) {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
@@ -244,10 +266,17 @@ onBeforeUnmount(() => {
     >
       <Check :size="14" :stroke-width="3" aria-hidden="true" />
     </span>
-    <!-- 渠道图标：由小到大弹出；瀑布流按位置给 --chan-delay，依次出现 -->
-    <Transition name="chan" appear>
-      <img v-if="channel" class="chan" :src="channel.logo" :alt="channel.name" :title="channel.name" draggable="false" />
-    </Transition>
+    <!-- 渠道图标：由小到大弹出；瀑布流按格子第一次出现的先后给 --chan-delay，依次出现 -->
+    <img
+      v-if="chan"
+      class="chan"
+      :class="chanOn ? 'in' : 'out'"
+      :src="chan.logo"
+      :alt="chanOn ? chan.name : ''"
+      :title="chanOn ? chan.name : undefined"
+      draggable="false"
+      @animationend="onChanEnd"
+    />
     <div v-if="textOnly && !torrent" class="face" :class="{ short }" :style="{ '--tint': tint }">
       <span class="quote" aria-hidden="true">“</span>
       <p class="face-text">{{ title }}</p>
@@ -481,16 +510,29 @@ onBeforeUnmount(() => {
   pointer-events: none;
   transform-origin: 50% 50%;
 }
-.chan-enter-active {
-  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) var(--chan-delay, 0ms), opacity 0.25s ease-out var(--chan-delay, 0ms);
+.chan.in {
+  animation:
+    chan-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) var(--chan-delay, 0ms) both,
+    chan-fade-in 0.25s ease-out var(--chan-delay, 0ms) both;
 }
-.chan-leave-active {
-  transition: transform 0.22s ease-in, opacity 0.22s ease-in;
+.chan.out {
+  animation: chan-out 0.22s ease-in both;
 }
-.chan-enter-from,
-.chan-leave-to {
-  opacity: 0;
-  transform: scale(0.2);
+@keyframes chan-pop {
+  from {
+    transform: scale(0.2);
+  }
+}
+@keyframes chan-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes chan-out {
+  to {
+    opacity: 0;
+    transform: scale(0.2);
+  }
 }
 /* 给图标让位：视频角标右移，纯文字卡的引号右移 */
 .badge,
@@ -824,15 +866,17 @@ onBeforeUnmount(() => {
 }
 @media (prefers-reduced-motion: reduce) {
   .pop-video,
-  .chan-enter-active,
-  .chan-leave-active,
   .badge,
   .quote {
     transition: none;
   }
   .cover.pending::after,
-  .hover-pop:not(.grown)::after {
+  .hover-pop:not(.grown)::after,
+  .chan.in {
     animation: none;
+  }
+  .chan.out {
+    display: none;
   }
 }
 /* 手机：两列，字号、内边距收小，统计只留点赞 */
