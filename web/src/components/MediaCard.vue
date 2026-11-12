@@ -380,14 +380,21 @@ onBeforeUnmount(() => {
 .card {
   display: block;
   border-radius: var(--radius-lg);
-  background: var(--glass-strong);
+  /*
+   * 不用 backdrop-filter：一屏上百张卡片各带一层模糊，背景一动 GPU 就要全部重算。
+   * 底色是不透明的：取原来毛玻璃卡片在背景上实测的颜色（--glass-strong 叠在底色、光晕上模糊后的结果），观感一致。
+   */
+  --card-bg: #fbfbfc;
+  background: var(--card-bg);
   border: 1px solid var(--glass-stroke);
   box-shadow: var(--shadow-card);
   overflow: hidden;
   color: inherit;
   text-decoration: none;
-  backdrop-filter: blur(24px);
   transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), background 0.5s;
+}
+[data-theme='dark'] .card {
+  --card-bg: #282f48;
 }
 @media (hover: hover) {
   .card:hover {
@@ -420,10 +427,10 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   color: transparent;
-  background: #ffffff40;
+  /* 不模糊封面（省掉每张卡片一层 backdrop-filter），底色略加深一点保持可辨认 */
+  background: #ffffff4d;
   border: 1.5px solid #ffffffd9;
   box-shadow: 0 2px 8px #1b1f2e33;
-  backdrop-filter: blur(8px);
   cursor: pointer;
   touch-action: none;
   opacity: 0;
